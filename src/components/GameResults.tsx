@@ -42,30 +42,43 @@ export default function GameResults({
 
   const problematicFactors = analyzeProblematicFactors();
 
+  const formatList = (numbers: number[]): string => {
+    if (!numbers || numbers.length === 0) return "";
+    if (numbers.length === 1) return numbers[0]?.toString() ?? "";
+    if (numbers.length === 2) return `${numbers[0]} og ${numbers[1]}`;
+    const allButLast = numbers.slice(0, -1);
+    const last = numbers[numbers.length - 1];
+    return `${allButLast.join(", ")} og ${last}`;
+  };
+
   return (
-    <div className="space-y-6">
-      <h2 className="text-center text-2xl font-bold">Spillet er ferdig!</h2>
+    <div className="flex h-full flex-col">
+      <div className="flex-none">
+        <h2 className="text-center text-2xl font-bold">Spillet er ferdig!</h2>
 
-      <div className="space-y-4">
-        <p className="text-xl">
-          Gratulerer! Du fikk {score} av {totalRounds} riktige svar.
-        </p>
+        <div className="mt-6 space-y-4">
+          <p className="text-xl">
+            Gratulerer! Du fikk {score} av {totalRounds} riktige svar.
+          </p>
 
-        <p>Du brukte totalt {formatTime(totalTime)}.</p>
+          <p>Du brukte totalt {formatTime(totalTime)}.</p>
 
-        {problematicFactors.length > 0 && (
-          <div className="space-y-2">
-            <p>Det ser ut til at multiplikasjoner med:</p>
-            <p className="font-medium text-gray-800">
-              {problematicFactors.join(" og ")}
-            </p>
-            <p>var utfordrende for deg.</p>
-          </div>
-        )}
+          {problematicFactors.length > 0 && (
+            <div className="space-y-2">
+              <p>Det ser ut til at multiplikasjoner med:</p>
+              <p className="font-medium text-gray-800">
+                {formatList(problematicFactors)} var utfordrende for deg.
+              </p>
+            </div>
+          )}
+        </div>
 
-        <div className="mt-8">
-          <h3 className="mb-4 text-lg font-semibold">Detaljert oversikt:</h3>
-          <div className="space-y-2">
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold">Detaljert oversikt:</h3>
+          <div
+            className="mt-4 space-y-2 overflow-y-auto pr-2"
+            style={{ maxHeight: "calc(100vh - 26rem)" }}
+          >
             {questions.map((q, index) => (
               <div
                 key={index}

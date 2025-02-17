@@ -32,12 +32,10 @@ export default function GameSettingsScreen({
       max: Math.max(0, Number(tempValues.max) || defaultSettings.max),
       timer: settings.timer, // Include timer value
     };
-    console.log("Submitting settings:", validatedSettings);
     onStart(validatedSettings);
   };
 
   const handleInputChange = (field: keyof typeof tempValues, value: string) => {
-    console.log("Input changed:", field, value);
     setTempValues((prev) => ({ ...prev, [field]: value }));
     const numValue = value === "" ? 0 : Number(value);
     setSettings((prev) => ({ ...prev, [field]: numValue }));

@@ -28,65 +28,64 @@ export default function Home() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // tRPC mutations
   const startSession = api.game.startSession.useMutation();
   const endSession = api.game.endSession.useMutation();
   const logAnswer = api.game.logAnswer.useMutation();
 
-  const startGame = (gameSettings: GameSettings) => {
-    console.log("Starting game with settings:", gameSettings);
+  const startGame = async (gameSettings: GameSettings) => {
+    setIsLoading(true);
     const validatedSettings = {
       rounds: Math.max(1, Math.min(50, Number(gameSettings.rounds))),
       min: Math.max(0, Math.min(12, Number(gameSettings.min))),
       max: Math.max(gameSettings.min, Math.min(12, Number(gameSettings.max))),
       timer: Math.max(1, Number(gameSettings.timer)),
     };
-    console.log("Validated settings:", validatedSettings);
 
-    // Start new game session in the background
-    startSession.mutate(
-      {
+    try {
+      // Start new game session and wait for it
+      const session = await startSession.mutateAsync({
         maxRounds: validatedSettings.rounds,
         minNumber: validatedSettings.min,
         maxNumber: validatedSettings.max,
-      },
-      {
-        onSuccess: (session) => {
-          setSessionId(session.id);
-        },
-      },
-    );
+      });
 
-    setSettings(validatedSettings);
-    setIsGameStarted(true);
-    setStartTime(Date.now());
+      setSessionId(session.id);
+      setSettings(validatedSettings);
+      setIsGameStarted(true);
+      setStartTime(Date.now());
 
-    // Generate first question...
-    const factor1 =
-      validatedSettings.min +
-      Math.floor(
-        Math.random() * (validatedSettings.max - validatedSettings.min + 1),
-      );
-    const factor2 =
-      validatedSettings.min +
-      Math.floor(
-        Math.random() * (validatedSettings.max - validatedSettings.min + 1),
-      );
+      // Generate first question...
+      const factor1 =
+        validatedSettings.min +
+        Math.floor(
+          Math.random() * (validatedSettings.max - validatedSettings.min + 1),
+        );
+      const factor2 =
+        validatedSettings.min +
+        Math.floor(
+          Math.random() * (validatedSettings.max - validatedSettings.min + 1),
+        );
 
-    console.log("Generated first factors:", factor1, factor2);
+      const newQuestion = {
+        factor1,
+        factor2,
+        correctAnswer: factor1 * factor2,
+      };
 
-    const newQuestion = {
-      factor1,
-      factor2,
-      correctAnswer: factor1 * factor2,
-    };
-
-    setGameState((prev) => ({
-      ...prev,
-      questions: [...prev.questions, newQuestion],
-      currentRound: prev.currentRound + 1,
-    }));
+      setGameState((prev) => ({
+        ...prev,
+        questions: [...prev.questions, newQuestion],
+        currentRound: prev.currentRound + 1,
+      }));
+    } catch (error) {
+      // Handle error - maybe show an error message to the user
+      setIsGameStarted(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAnswer = (answer: number) => {
@@ -154,15 +153,12 @@ export default function Home() {
   };
 
   const generateNewQuestion = (): Question => {
-    console.log("Current settings when generating question:", settings);
     const factor1 =
       settings.min +
       Math.floor(Math.random() * (settings.max - settings.min + 1));
     const factor2 =
       settings.min +
       Math.floor(Math.random() * (settings.max - settings.min + 1));
-
-    console.log("Generated factors:", factor1, factor2);
 
     const newQuestion = {
       factor1,
@@ -191,9 +187,9 @@ export default function Home() {
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-b from-blue-50 to-white">
-      <main className="mx-auto grid h-[100dvh] w-full max-w-[400px] grid-rows-[auto_1fr] px-2">
-        <div className="relative py-2">
+    <div className="fixed inset-0 overflow-hidden bg-gradient-to-b from-blue-50 to-white">
+      <main className="mx-auto flex h-[100dvh] w-full max-w-[400px] flex-col px-2">
+        <div className="relative flex-none py-2">
           <h1 className="text-center text-xl font-bold text-gray-800">
             Multiplikasjonsspill
           </h1>
@@ -207,26 +203,37 @@ export default function Home() {
           )}
         </div>
 
-        <div className="h-full">
-          {!isGameStarted ? (
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
+              <div className="text-center">
+                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-500"></div>
+                <p className="mt-4 text-gray-600">Starter spillet...</p>
+              </div>
+            </div>
+          ) : !isGameStarted ? (
             <GameSettingsScreen
               onStart={startGame}
               defaultSettings={defaultSettings}
             />
           ) : gameState.isGameOver ? (
-            <div className="space-y-8">
-              <GameResults
-                questions={gameState.questions}
-                score={gameState.score}
-                totalTime={gameState.totalTime}
-                totalRounds={settings.rounds}
-              />
-              <button
-                onClick={restartGame}
-                className="w-full rounded-lg bg-blue-500 p-4 text-lg font-semibold text-white transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Spill Igjen
-              </button>
+            <div className="flex h-full flex-col">
+              <div className="min-h-0 flex-1">
+                <GameResults
+                  questions={gameState.questions}
+                  score={gameState.score}
+                  totalTime={gameState.totalTime}
+                  totalRounds={settings.rounds}
+                />
+              </div>
+              <div className="flex-none pb-6 pt-4">
+                <button
+                  onClick={restartGame}
+                  className="w-full rounded-lg bg-blue-500 p-4 text-lg font-semibold text-white transition-colors hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Spill Igjen
+                </button>
+              </div>
             </div>
           ) : gameState.isWaitingForNextQuestion ? (
             <div className="space-y-6 text-center">
