@@ -10,11 +10,42 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Post {
+model Mathlog {
     id        Int      @id @default(autoincrement())
     name      String
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
     @@index([name])
+}
+
+model GameAnswer {
+    id            Int      @id @default(autoincrement())
+    factor1       Int
+    factor2       Int
+    userAnswer    Int
+    correctAnswer Int
+    isCorrect     Boolean
+    responseTime  Int      // Time in milliseconds
+    createdAt     DateTime @default(now())
+
+    // Optional: Link to a game session if you want to group answers
+    gameSession   GameSession? @relation(fields: [gameSessionId], references: [id])
+    gameSessionId Int?
+
+    @@index([isCorrect])
+    @@index([gameSessionId])
+}
+
+model GameSession {
+    id         Int          @id @default(autoincrement())
+    startTime  DateTime     @default(now())
+    endTime    DateTime?
+    totalScore Int
+    maxRounds  Int
+    minNumber  Int
+    maxNumber  Int
+    answers    GameAnswer[]
+
+    @@index([startTime])
 }

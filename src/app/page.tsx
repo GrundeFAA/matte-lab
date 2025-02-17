@@ -6,6 +6,7 @@ import QuestionDisplay from "#/components/QuestionDisplay";
 import GameResults from "#/components/GameResults";
 import CountdownTimer from "#/components/CountdownTimer";
 import GameSettingsScreen from "#/components/GameSettings";
+import { api } from "#/trpc/react";
 
 const defaultSettings: GameSettings = {
   rounds: 15,
@@ -26,6 +27,12 @@ export default function Home() {
   });
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+
+  // tRPC mutations
+  const startSession = api.game.startSession.useMutation();
+  const endSession = api.game.endSession.useMutation();
+  const logAnswer = api.game.logAnswer.useMutation();
 
   const startGame = (gameSettings: GameSettings) => {
     console.log("Starting game with settings:", gameSettings);
@@ -36,11 +43,26 @@ export default function Home() {
       timer: Math.max(1, Number(gameSettings.timer)),
     };
     console.log("Validated settings:", validatedSettings);
+
+    // Start new game session in the background
+    startSession.mutate(
+      {
+        maxRounds: validatedSettings.rounds,
+        minNumber: validatedSettings.min,
+        maxNumber: validatedSettings.max,
+      },
+      {
+        onSuccess: (session) => {
+          setSessionId(session.id);
+        },
+      },
+    );
+
     setSettings(validatedSettings);
     setIsGameStarted(true);
     setStartTime(Date.now());
 
-    // Generate first question using validated settings directly
+    // Generate first question...
     const factor1 =
       validatedSettings.min +
       Math.floor(
@@ -67,6 +89,56 @@ export default function Home() {
     }));
   };
 
+  const handleAnswer = (answer: number) => {
+    const currentQuestion = gameState.questions[gameState.currentRound - 1];
+    if (!currentQuestion || !sessionId) return;
+
+    const isCorrect = answer === currentQuestion.correctAnswer;
+    const responseTime = Date.now() - (startTime ?? Date.now());
+
+    // Log the answer in the background
+    logAnswer.mutate({
+      sessionId,
+      factor1: currentQuestion.factor1,
+      factor2: currentQuestion.factor2,
+      userAnswer: answer,
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect,
+      responseTime,
+    });
+
+    setGameState((prev) => {
+      const updatedQuestions = [...prev.questions];
+      updatedQuestions[prev.currentRound - 1] = {
+        ...currentQuestion,
+        userAnswer: answer,
+        isCorrect,
+        responseTime,
+      };
+
+      const newState = {
+        ...prev,
+        questions: updatedQuestions,
+        score: isCorrect ? prev.score + 1 : prev.score,
+        isWaitingForNextQuestion: true,
+      };
+
+      if (prev.currentRound === settings.rounds) {
+        newState.isGameOver = true;
+        newState.totalTime = Date.now() - (startTime ?? Date.now());
+        // End the session in the background
+        if (sessionId) {
+          endSession.mutate({
+            sessionId,
+            totalScore: isCorrect ? prev.score + 1 : prev.score,
+          });
+        }
+      }
+
+      return newState;
+    });
+  };
+
   const restartGame = () => {
     setGameState({
       currentRound: 0,
@@ -78,6 +150,7 @@ export default function Home() {
     });
     setIsGameStarted(false);
     setStartTime(null);
+    setSessionId(null);
   };
 
   const generateNewQuestion = (): Question => {
@@ -104,39 +177,6 @@ export default function Home() {
     }));
 
     return newQuestion;
-  };
-
-  const handleAnswer = (answer: number) => {
-    const currentQuestion = gameState.questions[gameState.currentRound - 1];
-    if (!currentQuestion) return;
-
-    const isCorrect = answer === currentQuestion.correctAnswer;
-
-    setGameState((prev) => {
-      const updatedQuestions = [...prev.questions];
-      updatedQuestions[prev.currentRound - 1] = {
-        factor1: currentQuestion.factor1,
-        factor2: currentQuestion.factor2,
-        correctAnswer: currentQuestion.correctAnswer,
-        userAnswer: answer,
-        isCorrect,
-        responseTime: Date.now() - (startTime ?? Date.now()),
-      };
-
-      const newState = {
-        ...prev,
-        questions: updatedQuestions,
-        score: isCorrect ? prev.score + 1 : prev.score,
-        isWaitingForNextQuestion: true,
-      };
-
-      if (prev.currentRound === settings.rounds) {
-        newState.isGameOver = true;
-        newState.totalTime = Date.now() - (startTime ?? Date.now());
-      }
-
-      return newState;
-    });
   };
 
   const handleNextQuestion = () => {
