@@ -71,7 +71,7 @@ export default function QuestionDisplay({
         <NumericKeypad
           onNumber={handleNumber}
           onDelete={handleDelete}
-          onSubmit={() => handleSubmit()}
+          onSubmit={handleSubmit}
           currentValue={answer}
         />
       </div>
